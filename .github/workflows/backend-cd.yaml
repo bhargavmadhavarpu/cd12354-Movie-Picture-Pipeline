@@ -62,7 +62,7 @@ jobs:
       - run: pipenv run test
       - name: Build Docker image
         run: |
-          docker build -t "backend:${GITHUB_SHA}" .
+          docker build --file Dockerfile --tag "backend:${GITHUB_SHA}" .
           docker tag "backend:${GITHUB_SHA}" "${ECR_IMAGE}:${GITHUB_SHA}"
 
   deploy:
@@ -90,7 +90,7 @@ jobs:
 
       - name: Build and push image
         run: |
-          docker build -t "backend:${GITHUB_SHA}" .
+          docker build --file Dockerfile --tag "backend:${GITHUB_SHA}" .
           docker tag "backend:${GITHUB_SHA}" "${ECR_IMAGE}:${GITHUB_SHA}"
           docker push "${ECR_IMAGE}:${GITHUB_SHA}"
 
