@@ -11,7 +11,6 @@ env:
   AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
   ECR_IMAGE: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_DEFAULT_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY_FRONTEND }}
   EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
-  FRONTEND_K8S_DIR: starter/frontend/k8s
   REACT_APP_MOVIE_API_URL: ${{ secrets.REACT_APP_MOVIE_API_URL }}
 
 jobs:
@@ -75,9 +74,6 @@ jobs:
     name: Frontend Deploy
     runs-on: ubuntu-latest
     needs: build
-    defaults:
-      run:
-        working-directory: starter/frontend
     steps:
       - uses: actions/checkout@v4
 
@@ -95,6 +91,7 @@ jobs:
         uses: imranismail/setup-kustomize@v2
 
       - name: Build and push image
+        working-directory: starter/frontend
         run: |
           docker build \
             --build-arg REACT_APP_MOVIE_API_URL="${REACT_APP_MOVIE_API_URL}" \
@@ -107,11 +104,11 @@ jobs:
         run: aws eks update-kubeconfig --name "${EKS_CLUSTER_NAME}" --region "${AWS_DEFAULT_REGION}"
 
       - name: Set frontend image
+        working-directory: starter/frontend/k8s
         run: |
-          cd "${FRONTEND_K8S_DIR}"
           kustomize edit set image frontend="${ECR_IMAGE}:${GITHUB_SHA}"
 
       - name: Deploy to Kubernetes
+        working-directory: starter/frontend/k8s
         run: |
-          cd "${FRONTEND_K8S_DIR}"
           kustomize build | kubectl apply -f -
