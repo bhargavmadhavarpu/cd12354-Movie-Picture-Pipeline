@@ -1,0 +1,116 @@
+name: Frontend Continuous Deployment
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "starter/frontend/**"
+      - ".github/workflows/frontend-cd.yaml"
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REPOSITORY: ${{ secrets.ECR_FRONTEND_REPOSITORY }}
+  EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
+  FRONTEND_DIR: starter/frontend
+  FRONTEND_K8S_DIR: starter/frontend/k8s
+  REACT_APP_MOVIE_API_URL: ${{ secrets.REACT_APP_MOVIE_API_URL }}
+
+jobs:
+  lint:
+    name: Frontend Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: starter/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: starter/frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+
+  test:
+    name: Frontend Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: starter/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: starter/frontend/package-lock.json
+      - run: npm ci
+      - run: CI=true npm test
+
+  build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    defaults:
+      run:
+        working-directory: starter/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: starter/frontend/package-lock.json
+      - run: npm ci
+      - name: Build Docker image
+        run: |
+          docker build \
+            --build-arg REACT_APP_MOVIE_API_URL="${REACT_APP_MOVIE_API_URL}" \
+            -t "${ECR_REPOSITORY}:${GITHUB_SHA}" \
+            .
+
+  deploy:
+    name: Frontend Deploy
+    runs-on: ubuntu-latest
+    needs: build
+    defaults:
+      run:
+        working-directory: starter/frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Setup kustomize
+        uses: imranismail/setup-kustomize@v2
+
+      - name: Build and push image
+        run: |
+          docker build \
+            --build-arg REACT_APP_MOVIE_API_URL="${REACT_APP_MOVIE_API_URL}" \
+            -t "${ECR_REPOSITORY}:${GITHUB_SHA}" \
+            .
+          docker push "${ECR_REPOSITORY}:${GITHUB_SHA}"
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name "${EKS_CLUSTER_NAME}" --region "${AWS_REGION}"
+
+      - name: Set frontend image
+        run: |
+          cd "${FRONTEND_K8S_DIR}"
+          kustomize edit set image frontend="${ECR_REPOSITORY}:${GITHUB_SHA}"
+
+      - name: Deploy to Kubernetes
+        run: |
+          cd "${FRONTEND_K8S_DIR}"
+          kustomize build | kubectl apply -f -
