@@ -8,7 +8,9 @@ on:
   workflow_dispatch:
 
 env:
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
   AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+  ECR_REPOSITORY_BACKEND: ${{ secrets.ECR_REPOSITORY_BACKEND }}
   ECR_IMAGE: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_DEFAULT_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY_BACKEND }}
   EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
   BACKEND_K8S_DIR: starter/backend/k8s
@@ -60,9 +62,18 @@ jobs:
       - run: pipenv install --dev
       - run: pipenv run lint
       - run: pipenv run test
+      - name: Validate image settings
+        run: |
+          test -n "${AWS_ACCOUNT_ID}" || { echo "AWS_ACCOUNT_ID is empty"; exit 1; }
+          test -n "${AWS_DEFAULT_REGION}" || { echo "AWS_DEFAULT_REGION is empty"; exit 1; }
+          test -n "${ECR_REPOSITORY_BACKEND}" || { echo "ECR_REPOSITORY_BACKEND is empty"; exit 1; }
+          test -n "${GITHUB_SHA}" || { echo "GITHUB_SHA is empty"; exit 1; }
       - name: Build Docker image
         run: |
-          docker build --file Dockerfile --tag "backend:${GITHUB_SHA}" .
+          docker build \
+            --file "${GITHUB_WORKSPACE}/starter/backend/Dockerfile" \
+            --tag "backend:${GITHUB_SHA}" \
+            "${GITHUB_WORKSPACE}/starter/backend"
           docker tag "backend:${GITHUB_SHA}" "${ECR_IMAGE}:${GITHUB_SHA}"
 
   deploy:
@@ -90,7 +101,10 @@ jobs:
 
       - name: Build and push image
         run: |
-          docker build --file Dockerfile --tag "backend:${GITHUB_SHA}" .
+          docker build \
+            --file "${GITHUB_WORKSPACE}/starter/backend/Dockerfile" \
+            --tag "backend:${GITHUB_SHA}" \
+            "${GITHUB_WORKSPACE}/starter/backend"
           docker tag "backend:${GITHUB_SHA}" "${ECR_IMAGE}:${GITHUB_SHA}"
           docker push "${ECR_IMAGE}:${GITHUB_SHA}"
 
