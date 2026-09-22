@@ -5,7 +5,6 @@ on:
     branches: [main]
     paths:
       - "starter/backend/**"
-      - ".github/workflows/backend-ci.yaml"
   workflow_dispatch:
 
 jobs:
@@ -23,6 +22,16 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
+
+      - name: Cache pip and pipenv
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.local/share/virtualenvs
+          key: ${{ runner.os }}-backend-${{ hashFiles('starter/backend/Pipfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-backend-
 
       - name: Install pipenv
         run: python -m pip install --upgrade pip pipenv
@@ -48,6 +57,16 @@ jobs:
         with:
           python-version: "3.10"
 
+      - name: Cache pip and pipenv
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.local/share/virtualenvs
+          key: ${{ runner.os }}-backend-${{ hashFiles('starter/backend/Pipfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-backend-
+
       - name: Install pipenv
         run: python -m pip install --upgrade pip pipenv
 
@@ -69,4 +88,4 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build Docker image
-        run: docker build -t movie-picture-backend:ci .
+        run: docker build -t backend:ci .

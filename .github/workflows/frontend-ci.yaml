@@ -5,7 +5,6 @@ on:
     branches: [main]
     paths:
       - "starter/frontend/**"
-      - ".github/workflows/frontend-ci.yaml"
   workflow_dispatch:
 
 jobs:
@@ -63,7 +62,7 @@ jobs:
       run:
         working-directory: starter/frontend
     env:
-      REACT_APP_MOVIE_API_URL: http://localhost:5000
+      REACT_APP_MOVIE_API_URL: ${{ secrets.REACT_APP_MOVIE_API_URL }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -85,4 +84,4 @@ jobs:
         run: |
           docker build \
             --build-arg REACT_APP_MOVIE_API_URL="${REACT_APP_MOVIE_API_URL}" \
-            -t movie-picture-frontend:ci .
+            -t frontend:ci .
