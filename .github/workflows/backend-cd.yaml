@@ -106,3 +106,22 @@ jobs:
         run: |
           cd "${BACKEND_K8S_DIR}"
           kustomize build | kubectl apply -f -
+
+      - name: Print backend public URL
+        run: |
+          endpoint=""
+          for attempt in {1..30}; do
+            endpoint=$(kubectl get service backend -o jsonpath='{.status.loadBalancer.ingress[0].hostname}{.status.loadBalancer.ingress[0].ip}')
+            if [ -n "$endpoint" ]; then
+              break
+            fi
+            sleep 10
+          done
+
+          if [ -n "$endpoint" ]; then
+            echo "Backend public URL: http://${endpoint}/movies"
+          else
+            echo "Backend load balancer endpoint is still pending. Current service status:"
+            kubectl get service backend -o wide
+            exit 1
+          fi
